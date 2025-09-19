@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/spf13/viper"
 )
@@ -17,6 +18,7 @@ func NewConfiguration() *Configuration {
 	v.SetDefault("stream.url", "https://ais-sa1.streamon.fm:443/7346_48k.aac")
 	v.SetDefault("whisper.model_path", "./models/ggml-base.en.bin")
 	v.SetDefault("buffer.duration_ms", 2500)
+	v.SetDefault("allowlist.numbers", []string{})
 	return &Configuration{viper: v}
 }
 
@@ -27,6 +29,7 @@ func NewConfigurationFromFile(configFile string) (*Configuration, error) {
 	v.SetDefault("stream.url", "https://ais-sa1.streamon.fm:443/7346_48k.aac")
 	v.SetDefault("whisper.model_path", "./models/ggml-base.en.bin")
 	v.SetDefault("buffer.duration_ms", 2500)
+	v.SetDefault("allowlist.numbers", []string{})
 
 	if err := v.ReadInConfig(); err != nil {
 		return nil, fmt.Errorf("failed to read config file %s: %w", configFile, err)
@@ -47,6 +50,7 @@ func NewConfigurationFromEnv() (*Configuration, error) {
 	v.SetDefault("stream.url", "https://ais-sa1.streamon.fm:443/7346_48k.aac")
 	v.SetDefault("whisper.model_path", "./models/ggml-base.en.bin")
 	v.SetDefault("buffer.duration_ms", 2500)
+	v.SetDefault("allowlist.numbers", []string{})
 
 	// Set up environment variable mapping
 	v.SetEnvPrefix("RADIO")
@@ -56,6 +60,7 @@ func NewConfigurationFromEnv() (*Configuration, error) {
 	v.BindEnv("stream.url", "STREAM_URL")
 	v.BindEnv("whisper.model_path", "WHISPER_MODEL_PATH")
 	v.BindEnv("buffer.duration_ms", "BUFFER_DURATION_MS")
+	v.BindEnv("allowlist.numbers", "ALLOWLIST_NUMBERS")
 
 	return &Configuration{viper: v}, nil
 }
@@ -73,4 +78,27 @@ func (c *Configuration) GetWhisperModelPath() string {
 // GetBufferDurationMS returns the configured buffer duration in milliseconds
 func (c *Configuration) GetBufferDurationMS() int {
 	return c.viper.GetInt("buffer.duration_ms")
+}
+
+// GetAllowlist returns the configured allowlist of numbers
+func (c *Configuration) GetAllowlist() []string {
+	// Check if we have an array (from config file)
+	allowlistSlice := c.viper.GetStringSlice("allowlist.numbers")
+
+	// If we have exactly one element that contains commas, it's likely from environment variable
+	if len(allowlistSlice) == 1 && strings.Contains(allowlistSlice[0], ",") {
+		// Split comma-separated values and trim spaces
+		numbers := strings.Split(allowlistSlice[0], ",")
+		result := make([]string, 0, len(numbers))
+		for _, num := range numbers {
+			trimmed := strings.TrimSpace(num)
+			if trimmed != "" {
+				result = append(result, trimmed)
+			}
+		}
+		return result
+	}
+
+	// Return the slice as-is (could be empty, single element, or multiple elements)
+	return allowlistSlice
 }

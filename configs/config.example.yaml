@@ -15,3 +15,16 @@ buffer:
   # This controls how long segments are buffered before being combined
   # into more coherent sentences for contest parsing
   duration_ms: 2500
+
+# Number allowlist configuration for contest parsing
+allowlist:
+  # List of numbers to filter for in transcription text
+  # Only transcription segments containing these numbers will be processed
+  # for contest information. This helps filter out commercials and irrelevant chatter.
+  # Examples: ham radio call signs, contest numbers, frequency allocations
+  numbers:
+    - "73"       # Common ham radio sign-off
+    - "146"      # 2-meter band frequency
+    - "222"      # 220 MHz band
+    - "0146"     # Frequency with leading zero
+    # Add more numbers as needed for your contest

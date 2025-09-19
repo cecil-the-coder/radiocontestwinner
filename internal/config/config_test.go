@@ -298,3 +298,167 @@ func TestConfiguration_GetBufferDurationMS(t *testing.T) {
 		assert.Contains(t, err.Error(), "buffer duration must be between 1000 and 10000 milliseconds")
 	})
 }
+
+func TestConfiguration_GetAllowlist(t *testing.T) {
+	t.Run("should return empty allowlist by default", func(t *testing.T) {
+		// Arrange
+		cfg := NewConfiguration()
+
+		// Act
+		allowlist := cfg.GetAllowlist()
+
+		// Assert
+		assert.Empty(t, allowlist, "default allowlist should be empty")
+	})
+
+	t.Run("should load allowlist from config file", func(t *testing.T) {
+		// Arrange - create temporary config file
+		tmpDir := t.TempDir()
+		configFile := filepath.Join(tmpDir, "config.yaml")
+		configContent := `allowlist:
+  numbers:
+    - "73"
+    - "146"
+    - "222"`
+
+		err := os.WriteFile(configFile, []byte(configContent), 0644)
+		assert.NoError(t, err)
+
+		cfg, err := NewConfigurationFromFile(configFile)
+		assert.NoError(t, err)
+
+		// Act
+		allowlist := cfg.GetAllowlist()
+
+		// Assert
+		expected := []string{"73", "146", "222"}
+		assert.Equal(t, expected, allowlist)
+	})
+
+	t.Run("should load allowlist from environment variable", func(t *testing.T) {
+		// Arrange
+		testAllowlist := "73,146,222"
+		os.Setenv("ALLOWLIST_NUMBERS", testAllowlist)
+		defer os.Unsetenv("ALLOWLIST_NUMBERS")
+
+		cfg, err := NewConfigurationFromEnv()
+		assert.NoError(t, err)
+
+		// Act
+		allowlist := cfg.GetAllowlist()
+
+		// Assert
+		expected := []string{"73", "146", "222"}
+		assert.Equal(t, expected, allowlist)
+	})
+
+	t.Run("should fall back to empty allowlist when config file lacks allowlist section", func(t *testing.T) {
+		// Arrange - create config file without allowlist section
+		tmpDir := t.TempDir()
+		configFile := filepath.Join(tmpDir, "minimal.yaml")
+		configContent := `stream:
+  url: "https://test.example.com/stream.aac"`
+
+		err := os.WriteFile(configFile, []byte(configContent), 0644)
+		assert.NoError(t, err)
+
+		cfg, err := NewConfigurationFromFile(configFile)
+		assert.NoError(t, err)
+
+		// Act
+		allowlist := cfg.GetAllowlist()
+
+		// Assert
+		assert.Empty(t, allowlist)
+	})
+
+	t.Run("should handle mixed number formats in allowlist", func(t *testing.T) {
+		// Arrange - create config file with mixed number formats
+		tmpDir := t.TempDir()
+		configFile := filepath.Join(tmpDir, "config.yaml")
+		configContent := `allowlist:
+  numbers:
+    - "73"
+    - 146
+    - "0222"
+    - 999`
+
+		err := os.WriteFile(configFile, []byte(configContent), 0644)
+		assert.NoError(t, err)
+
+		cfg, err := NewConfigurationFromFile(configFile)
+		assert.NoError(t, err)
+
+		// Act
+		allowlist := cfg.GetAllowlist()
+
+		// Assert
+		expected := []string{"73", "146", "0222", "999"}
+		assert.Equal(t, expected, allowlist)
+	})
+
+	t.Run("should return empty allowlist when environment variable not set", func(t *testing.T) {
+		// Arrange - ensure environment variable is not set
+		os.Unsetenv("ALLOWLIST_NUMBERS")
+
+		cfg, err := NewConfigurationFromEnv()
+		assert.NoError(t, err)
+
+		// Act
+		allowlist := cfg.GetAllowlist()
+
+		// Assert
+		assert.Empty(t, allowlist)
+	})
+
+	t.Run("should handle empty allowlist in config file", func(t *testing.T) {
+		// Arrange - create config file with empty allowlist
+		tmpDir := t.TempDir()
+		configFile := filepath.Join(tmpDir, "config.yaml")
+		configContent := `allowlist:
+  numbers: []`
+
+		err := os.WriteFile(configFile, []byte(configContent), 0644)
+		assert.NoError(t, err)
+
+		cfg, err := NewConfigurationFromFile(configFile)
+		assert.NoError(t, err)
+
+		// Act
+		allowlist := cfg.GetAllowlist()
+
+		// Assert
+		assert.Empty(t, allowlist)
+	})
+
+	t.Run("should handle empty environment variable", func(t *testing.T) {
+		// Arrange
+		os.Setenv("ALLOWLIST_NUMBERS", "")
+		defer os.Unsetenv("ALLOWLIST_NUMBERS")
+
+		cfg, err := NewConfigurationFromEnv()
+		assert.NoError(t, err)
+
+		// Act
+		allowlist := cfg.GetAllowlist()
+
+		// Assert
+		assert.Empty(t, allowlist)
+	})
+
+	t.Run("should handle single number in environment variable", func(t *testing.T) {
+		// Arrange
+		os.Setenv("ALLOWLIST_NUMBERS", "73")
+		defer os.Unsetenv("ALLOWLIST_NUMBERS")
+
+		cfg, err := NewConfigurationFromEnv()
+		assert.NoError(t, err)
+
+		// Act
+		allowlist := cfg.GetAllowlist()
+
+		// Assert
+		expected := []string{"73"}
+		assert.Equal(t, expected, allowlist)
+	})
+}
