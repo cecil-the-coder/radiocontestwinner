@@ -1,0 +1,215 @@
+# CI/CD Pipeline for Radio Contest Winner
+name: CI/CD
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+  workflow_dispatch:
+    inputs:
+      deploy_environment:
+        description: 'Environment to deploy to'
+        required: false
+        default: 'staging'
+        type: choice
+        options:
+        - staging
+        - production
+
+permissions:
+  contents: read
+  packages: write
+  security-events: write
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+  DOCKER_BUILDKIT: 1
+
+jobs:
+  # Job 1: Test and Build
+  test-and-build:
+    runs-on: ubuntu-latest
+    outputs:
+      image-tag: ${{ steps.meta.outputs.tags }}
+      image-digest: ${{ steps.build.outputs.digest }}
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Go 1.24
+      uses: actions/setup-go@v5
+      with:
+        go-version: '1.24'
+
+    - name: Cache Go modules
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.cache/go-build
+          ~/go/pkg/mod
+        key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+        restore-keys: |
+          ${{ runner.os }}-go-
+
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y ffmpeg build-essential pkg-config cmake bc
+
+    - name: Download Go modules
+      run: go mod download
+
+    - name: Run tests with coverage enforcement
+      run: |
+        chmod +x scripts/coverage.sh
+        ./scripts/coverage.sh
+
+    - name: Upload coverage reports
+      uses: codecov/codecov-action@v3
+      with:
+        file: ./coverage.out
+        fail_ci_if_error: false
+
+    # Docker build and test
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Log in to Container Registry
+      if: github.event_name != 'pull_request'
+      uses: docker/login-action@v3
+      with:
+        registry: ${{ env.REGISTRY }}
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Extract metadata
+      id: meta
+      uses: docker/metadata-action@v5
+      with:
+        images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+        tags: |
+          type=ref,event=branch
+          type=ref,event=pr
+          type=sha,prefix={{branch}}-
+          type=raw,value=latest,enable={{is_default_branch}}
+
+    - name: Build and test Docker image
+      id: build
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        file: ./build/Dockerfile
+        platforms: linux/amd64
+        push: ${{ github.event_name != 'pull_request' }}
+        tags: ${{ steps.meta.outputs.tags }}
+        labels: ${{ steps.meta.outputs.labels }}
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+        target: runtime
+
+    - name: Test built image
+      if: github.event_name != 'pull_request'
+      run: |
+        # Test that the image can start successfully and run --help
+        IMAGE_TAG=$(echo "${{ steps.meta.outputs.tags }}" | head -n1)
+        echo "Testing image: $IMAGE_TAG"
+
+        # Test help command works
+        if docker run --rm "$IMAGE_TAG" ./radiocontestwinner --help; then
+          echo "✅ Container help command succeeded"
+        else
+          echo "❌ Container help command failed"
+          exit 1
+        fi
+
+        # Test normal startup (should print startup message and exit cleanly)
+        if docker run --rm "$IMAGE_TAG"; then
+          echo "✅ Container startup test passed"
+        else
+          echo "❌ Container startup test failed"
+          exit 1
+        fi
+
+  # Job 2: Security Scanning
+  security-scan:
+    runs-on: ubuntu-latest
+    needs: test-and-build
+    if: github.event_name != 'pull_request'
+
+    steps:
+    - name: Set image reference for scanning
+      id: image-ref
+      run: |
+        # Extract the first image tag for security scanning
+        FIRST_TAG=$(echo "${{ needs.test-and-build.outputs.image-tag }}" | head -n1)
+        echo "image=$FIRST_TAG" >> $GITHUB_OUTPUT
+        echo "Scanning image: $FIRST_TAG"
+
+    - name: Run Trivy vulnerability scanner
+      uses: aquasecurity/trivy-action@master
+      with:
+        image-ref: ${{ steps.image-ref.outputs.image }}
+        format: 'sarif'
+        output: 'trivy-results.sarif'
+
+    - name: Upload Trivy scan results to GitHub Security tab
+      uses: github/codeql-action/upload-sarif@v3
+      if: always()
+      with:
+        sarif_file: 'trivy-results.sarif'
+
+  # Job 3: Deploy to Staging
+  deploy-staging:
+    runs-on: ubuntu-latest
+    needs: [test-and-build, security-scan]
+    if: github.ref == 'refs/heads/main' || github.event.inputs.deploy_environment == 'staging'
+    environment: staging
+
+    steps:
+    - name: Deploy to staging
+      run: |
+        echo "🚀 Deploying to staging environment"
+        echo "Image: ${{ needs.test-and-build.outputs.image-tag }}"
+        echo "Digest: ${{ needs.test-and-build.outputs.image-digest }}"
+
+        # Here you would add actual deployment steps such as:
+        # - Updating Kubernetes manifests
+        # - Triggering deployment pipelines
+        # - Notifying deployment services
+
+        echo "✅ Staging deployment completed"
+
+  # Job 4: Deploy to Production
+  deploy-production:
+    runs-on: ubuntu-latest
+    needs: [test-and-build, security-scan, deploy-staging]
+    if: github.ref == 'refs/heads/main' && github.event.inputs.deploy_environment == 'production'
+    environment: production
+
+    steps:
+    - name: Deploy to production
+      run: |
+        echo "🚀 Deploying to production environment"
+        echo "Image: ${{ needs.test-and-build.outputs.image-tag }}"
+        echo "Digest: ${{ needs.test-and-build.outputs.image-digest }}"
+
+        # Here you would add actual production deployment steps
+        # This would typically require additional approval workflows
+
+        echo "✅ Production deployment completed"
+
+  # Job 5: Cleanup
+  cleanup:
+    runs-on: ubuntu-latest
+    needs: [test-and-build]
+    if: always() && github.event_name == 'pull_request'
+
+    steps:
+    - name: Clean up PR images
+      run: |
+        echo "🧹 Cleaning up PR-specific images and resources"
+        # Add cleanup logic for PR-specific resources
+        echo "✅ Cleanup completed"
