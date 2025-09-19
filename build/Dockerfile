@@ -2,13 +2,14 @@
 # Stage 1: Build stage with Go 1.24 and all dependencies
 FROM golang:1.24-bookworm AS builder
 
-# Install system dependencies for build
+# Install system dependencies for build (including FFmpeg for integration tests)
 RUN apt-get update && apt-get install -y \
     build-essential \
     pkg-config \
     cmake \
     git \
     bc \
+    ffmpeg \
     && rm -rf /var/lib/apt/lists/*
 
 # Set working directory
