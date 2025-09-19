@@ -193,3 +193,108 @@ func TestConfiguration_GetWhisperModelPath(t *testing.T) {
 		assert.Equal(t, "./models/ggml-base.en.bin", path)
 	})
 }
+
+func TestConfiguration_GetBufferDurationMS(t *testing.T) {
+	t.Run("should return default buffer duration", func(t *testing.T) {
+		// Arrange
+		cfg := NewConfiguration()
+
+		// Act
+		duration := cfg.GetBufferDurationMS()
+
+		// Assert
+		assert.Equal(t, 2500, duration, "default buffer duration should be 2500ms")
+	})
+
+	t.Run("should load buffer duration from config file", func(t *testing.T) {
+		// Arrange - create temporary config file
+		tmpDir := t.TempDir()
+		configFile := filepath.Join(tmpDir, "config.yaml")
+		configContent := `buffer:
+  duration_ms: 3000`
+
+		err := os.WriteFile(configFile, []byte(configContent), 0644)
+		assert.NoError(t, err)
+
+		cfg, err := NewConfigurationFromFile(configFile)
+		assert.NoError(t, err)
+
+		// Act
+		duration := cfg.GetBufferDurationMS()
+
+		// Assert
+		assert.Equal(t, 3000, duration)
+	})
+
+	t.Run("should load buffer duration from environment variable", func(t *testing.T) {
+		// Arrange
+		testDuration := "5000"
+		os.Setenv("BUFFER_DURATION_MS", testDuration)
+		defer os.Unsetenv("BUFFER_DURATION_MS")
+
+		cfg, err := NewConfigurationFromEnv()
+		assert.NoError(t, err)
+
+		// Act
+		duration := cfg.GetBufferDurationMS()
+
+		// Assert
+		assert.Equal(t, 5000, duration)
+	})
+
+	t.Run("should fall back to default when config file lacks buffer section", func(t *testing.T) {
+		// Arrange - create config file without buffer section
+		tmpDir := t.TempDir()
+		configFile := filepath.Join(tmpDir, "minimal.yaml")
+		configContent := `stream:
+  url: "https://test.example.com/stream.aac"`
+
+		err := os.WriteFile(configFile, []byte(configContent), 0644)
+		assert.NoError(t, err)
+
+		cfg, err := NewConfigurationFromFile(configFile)
+		assert.NoError(t, err)
+
+		// Act
+		duration := cfg.GetBufferDurationMS()
+
+		// Assert
+		assert.Equal(t, 2500, duration)
+	})
+
+	t.Run("should validate buffer duration range", func(t *testing.T) {
+		// Arrange - create config file with invalid duration
+		tmpDir := t.TempDir()
+		configFile := filepath.Join(tmpDir, "config.yaml")
+		configContent := `buffer:
+  duration_ms: 500`  // Below minimum
+
+		err := os.WriteFile(configFile, []byte(configContent), 0644)
+		assert.NoError(t, err)
+
+		// Act
+		_, err = NewConfigurationFromFile(configFile)
+
+		// Assert
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "buffer duration must be between 1000 and 10000 milliseconds")
+	})
+
+	t.Run("should validate buffer duration upper bound", func(t *testing.T) {
+		// Arrange - create config file with duration too high
+		tmpDir := t.TempDir()
+		configFile := filepath.Join(tmpDir, "config.yaml")
+		configContent := `buffer:
+  duration_ms: 15000`  // Above maximum
+
+		err := os.WriteFile(configFile, []byte(configContent), 0644)
+		assert.NoError(t, err)
+
+		// Act
+		_, err = NewConfigurationFromFile(configFile)
+
+		// Assert
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "buffer duration must be between 1000 and 10000 milliseconds")
+	})
+}

@@ -16,6 +16,7 @@ func NewConfiguration() *Configuration {
 	v := viper.New()
 	v.SetDefault("stream.url", "https://ais-sa1.streamon.fm:443/7346_48k.aac")
 	v.SetDefault("whisper.model_path", "./models/ggml-base.en.bin")
+	v.SetDefault("buffer.duration_ms", 2500)
 	return &Configuration{viper: v}
 }
 
@@ -25,9 +26,16 @@ func NewConfigurationFromFile(configFile string) (*Configuration, error) {
 	v.SetConfigFile(configFile)
 	v.SetDefault("stream.url", "https://ais-sa1.streamon.fm:443/7346_48k.aac")
 	v.SetDefault("whisper.model_path", "./models/ggml-base.en.bin")
+	v.SetDefault("buffer.duration_ms", 2500)
 
 	if err := v.ReadInConfig(); err != nil {
 		return nil, fmt.Errorf("failed to read config file %s: %w", configFile, err)
+	}
+
+	// Validate buffer duration
+	bufferDuration := v.GetInt("buffer.duration_ms")
+	if bufferDuration < 1000 || bufferDuration > 10000 {
+		return nil, fmt.Errorf("buffer duration must be between 1000 and 10000 milliseconds, got %d", bufferDuration)
 	}
 
 	return &Configuration{viper: v}, nil
@@ -38,6 +46,7 @@ func NewConfigurationFromEnv() (*Configuration, error) {
 	v := viper.New()
 	v.SetDefault("stream.url", "https://ais-sa1.streamon.fm:443/7346_48k.aac")
 	v.SetDefault("whisper.model_path", "./models/ggml-base.en.bin")
+	v.SetDefault("buffer.duration_ms", 2500)
 
 	// Set up environment variable mapping
 	v.SetEnvPrefix("RADIO")
@@ -46,6 +55,7 @@ func NewConfigurationFromEnv() (*Configuration, error) {
 	// Map specific environment variables
 	v.BindEnv("stream.url", "STREAM_URL")
 	v.BindEnv("whisper.model_path", "WHISPER_MODEL_PATH")
+	v.BindEnv("buffer.duration_ms", "BUFFER_DURATION_MS")
 
 	return &Configuration{viper: v}, nil
 }
@@ -58,4 +68,9 @@ func (c *Configuration) GetStreamURL() string {
 // GetWhisperModelPath returns the configured Whisper model path
 func (c *Configuration) GetWhisperModelPath() string {
 	return c.viper.GetString("whisper.model_path")
+}
+
+// GetBufferDurationMS returns the configured buffer duration in milliseconds
+func (c *Configuration) GetBufferDurationMS() int {
+	return c.viper.GetInt("buffer.duration_ms")
 }
