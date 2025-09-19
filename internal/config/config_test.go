@@ -123,3 +123,73 @@ invalid_yaml: [unclosed_bracket`
 		assert.Equal(t, "https://ais-sa1.streamon.fm:443/7346_48k.aac", url)
 	})
 }
+
+func TestConfiguration_GetWhisperModelPath(t *testing.T) {
+	t.Run("should return configured Whisper model path", func(t *testing.T) {
+		// Arrange
+		cfg := NewConfiguration()
+
+		// Act
+		path := cfg.GetWhisperModelPath()
+
+		// Assert
+		assert.NotEmpty(t, path, "Whisper model path should not be empty")
+		assert.Equal(t, "./models/ggml-base.en.bin", path)
+	})
+
+	t.Run("should load Whisper model path from config file", func(t *testing.T) {
+		// Arrange - create temporary config file
+		tmpDir := t.TempDir()
+		configFile := filepath.Join(tmpDir, "config.yaml")
+		configContent := `whisper:
+  model_path: "/path/to/custom/model.bin"`
+
+		err := os.WriteFile(configFile, []byte(configContent), 0644)
+		assert.NoError(t, err)
+
+		cfg, err := NewConfigurationFromFile(configFile)
+		assert.NoError(t, err)
+
+		// Act
+		path := cfg.GetWhisperModelPath()
+
+		// Assert
+		assert.Equal(t, "/path/to/custom/model.bin", path)
+	})
+
+	t.Run("should load Whisper model path from environment variable", func(t *testing.T) {
+		// Arrange
+		testPath := "/env/path/to/model.bin"
+		os.Setenv("WHISPER_MODEL_PATH", testPath)
+		defer os.Unsetenv("WHISPER_MODEL_PATH")
+
+		cfg, err := NewConfigurationFromEnv()
+		assert.NoError(t, err)
+
+		// Act
+		path := cfg.GetWhisperModelPath()
+
+		// Assert
+		assert.Equal(t, testPath, path)
+	})
+
+	t.Run("should fall back to default path when config file lacks whisper section", func(t *testing.T) {
+		// Arrange - create config file without whisper section
+		tmpDir := t.TempDir()
+		configFile := filepath.Join(tmpDir, "minimal.yaml")
+		configContent := `stream:
+  url: "https://test.example.com/stream.aac"`
+
+		err := os.WriteFile(configFile, []byte(configContent), 0644)
+		assert.NoError(t, err)
+
+		cfg, err := NewConfigurationFromFile(configFile)
+		assert.NoError(t, err)
+
+		// Act
+		path := cfg.GetWhisperModelPath()
+
+		// Assert
+		assert.Equal(t, "./models/ggml-base.en.bin", path)
+	})
+}
