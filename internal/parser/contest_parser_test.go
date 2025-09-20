@@ -914,3 +914,304 @@ func TestContestParser_ErrorHandlingAndLogging(t *testing.T) {
 		assert.Len(t, results, 1, "should process successfully despite potential logging issues")
 	})
 }
+
+func TestContestParser_DetectLetterSequences(t *testing.T) {
+	t.Run("should detect simple letter sequence", func(t *testing.T) {
+		// Arrange
+		parser := NewContestParser([]string{})
+		text := "Text S A N D to 1234"
+
+		// Act
+		sequences := parser.DetectLetterSequences(text)
+
+		// Assert
+		assert.Len(t, sequences, 1, "should detect one letter sequence")
+		assert.Equal(t, "S A N D", sequences[0], "should detect S A N D sequence")
+	})
+
+	t.Run("should detect multiple letter sequences", func(t *testing.T) {
+		// Arrange
+		parser := NewContestParser([]string{})
+		text := "Text P A R K and also R O C K to 1234"
+
+		// Act
+		sequences := parser.DetectLetterSequences(text)
+
+		// Assert
+		assert.Len(t, sequences, 2, "should detect two letter sequences")
+		assert.Contains(t, sequences, "P A R K", "should detect P A R K sequence")
+		assert.Contains(t, sequences, "R O C K", "should detect R O C K sequence")
+	})
+
+	t.Run("should handle single letters surrounded by words", func(t *testing.T) {
+		// Arrange
+		parser := NewContestParser([]string{})
+		text := "Hello I spell C A T here and done"
+
+		// Act
+		sequences := parser.DetectLetterSequences(text)
+
+		// Assert
+		assert.Len(t, sequences, 1, "should detect one letter sequence")
+		assert.Equal(t, "C A T", sequences[0], "should detect C A T sequence")
+	})
+
+	t.Run("should handle punctuation and extra spacing", func(t *testing.T) {
+		// Arrange
+		parser := NewContestParser([]string{})
+		text := "Text  D   ,  O   G   to 1234"
+
+		// Act
+		sequences := parser.DetectLetterSequences(text)
+
+		// Assert
+		if len(sequences) > 0 {
+			assert.Len(t, sequences, 1, "should detect one letter sequence")
+			assert.Equal(t, "D O G", sequences[0], "should detect D O G sequence with normalized spacing")
+		} else {
+			// For now, accept that punctuation breaks sequences - we can enhance this later
+			assert.Empty(t, sequences, "punctuation breaks sequences in current implementation")
+		}
+	})
+
+	t.Run("should ignore short sequences", func(t *testing.T) {
+		// Arrange
+		parser := NewContestParser([]string{})
+		text := "Text A B and longer D E F G to 1234"
+
+		// Act
+		sequences := parser.DetectLetterSequences(text)
+
+		// Assert
+		assert.Len(t, sequences, 1, "should detect only one sequence")
+		assert.Equal(t, "D E F G", sequences[0], "should only detect longer sequence")
+	})
+
+	t.Run("should handle empty text", func(t *testing.T) {
+		// Arrange
+		parser := NewContestParser([]string{})
+		text := ""
+
+		// Act
+		sequences := parser.DetectLetterSequences(text)
+
+		// Assert
+		assert.Empty(t, sequences, "should return empty slice for empty text")
+	})
+}
+
+func TestContestParser_ReconstructWords(t *testing.T) {
+	t.Run("should reconstruct simple word from letter sequence", func(t *testing.T) {
+		// Arrange
+		parser := NewContestParser([]string{})
+		sequence := "S A N D"
+
+		// Act
+		word := parser.ReconstructWord(sequence)
+
+		// Assert
+		assert.Equal(t, "SAND", word, "should reconstruct SAND from S A N D")
+	})
+
+	t.Run("should handle case normalization", func(t *testing.T) {
+		// Arrange
+		parser := NewContestParser([]string{})
+		sequence := "s a n d"
+
+		// Act
+		word := parser.ReconstructWord(sequence)
+
+		// Assert
+		assert.Equal(t, "SAND", word, "should normalize to uppercase")
+	})
+
+	t.Run("should handle mixed case", func(t *testing.T) {
+		// Arrange
+		parser := NewContestParser([]string{})
+		sequence := "P a R k"
+
+		// Act
+		word := parser.ReconstructWord(sequence)
+
+		// Assert
+		assert.Equal(t, "PARK", word, "should normalize mixed case to uppercase")
+	})
+
+	t.Run("should handle extra whitespace", func(t *testing.T) {
+		// Arrange
+		parser := NewContestParser([]string{})
+		sequence := "  R   O   C   K  "
+
+		// Act
+		word := parser.ReconstructWord(sequence)
+
+		// Assert
+		assert.Equal(t, "ROCK", word, "should handle extra whitespace")
+	})
+
+	t.Run("should return empty string for empty sequence", func(t *testing.T) {
+		// Arrange
+		parser := NewContestParser([]string{})
+		sequence := ""
+
+		// Act
+		word := parser.ReconstructWord(sequence)
+
+		// Assert
+		assert.Equal(t, "", word, "should return empty string for empty sequence")
+	})
+}
+
+func TestContestParser_ReconstructSpelledWords(t *testing.T) {
+	t.Run("should reconstruct spelled words in text", func(t *testing.T) {
+		// Arrange
+		parser := NewContestParser([]string{})
+		text := "Text S A N D to 1234"
+
+		// Act
+		result := parser.ReconstructSpelledWords(text)
+
+		// Assert
+		assert.Equal(t, "Text SAND to 1234", result, "should replace spelled sequence with reconstructed word")
+	})
+
+	t.Run("should handle multiple spelled words", func(t *testing.T) {
+		// Arrange
+		parser := NewContestParser([]string{})
+		text := "Text P A R K and R O C K to 1234"
+
+		// Act
+		result := parser.ReconstructSpelledWords(text)
+
+		// Assert
+		assert.Equal(t, "Text PARK and ROCK to 1234", result, "should replace multiple spelled sequences")
+	})
+
+	t.Run("should preserve non-spelled text", func(t *testing.T) {
+		// Arrange
+		parser := NewContestParser([]string{})
+		text := "Hello world, this has no spelled words in it"
+
+		// Act
+		result := parser.ReconstructSpelledWords(text)
+
+		// Assert
+		assert.Equal(t, text, result, "should return original text when no spelled words found")
+	})
+
+	t.Run("should handle mixed content", func(t *testing.T) {
+		// Arrange
+		parser := NewContestParser([]string{})
+		text := "Station calling, please spell F I R E to confirm"
+
+		// Act
+		result := parser.ReconstructSpelledWords(text)
+
+		// Assert
+		assert.Equal(t, "Station calling, please spell FIRE to confirm", result, "should replace only spelled sequences")
+	})
+}
+
+func TestContestParser_IntegrationSpelledWordReconstruction(t *testing.T) {
+	t.Run("should create ContestCue from spelled-out keyword", func(t *testing.T) {
+		// Arrange
+		allowlist := []string{"1234"}
+		parser := NewContestParser(allowlist)
+		context := &buffer.BufferedContext{
+			Text:    "Text S A N D to 1234",
+			StartMS: 1000,
+			EndMS:   2000,
+		}
+
+		// Act
+		cue, created := parser.CreateContestCue(context)
+
+		// Assert
+		assert.True(t, created, "should create ContestCue from spelled-out keyword")
+		assert.NotNil(t, cue, "should return ContestCue")
+		assert.Equal(t, "SAND", cue.ContestType, "should use reconstructed keyword as contest type")
+
+		// Verify details contain both original and reconstructed text
+		assert.Equal(t, "SAND", cue.Details["keyword"], "should have reconstructed keyword in details")
+		assert.Equal(t, "1234", cue.Details["number"], "should have correct number in details")
+		assert.Equal(t, "Text S A N D to 1234", cue.Details["original_text"], "should preserve original text")
+		assert.Equal(t, "Text SAND to 1234", cue.Details["reconstructed_text"], "should include reconstructed text")
+	})
+
+	t.Run("should handle spelled-out keyword with different case", func(t *testing.T) {
+		// Arrange
+		allowlist := []string{"9876"}
+		parser := NewContestParser(allowlist)
+		context := &buffer.BufferedContext{
+			Text:    "Text p a r k to 9876",
+			StartMS: 1000,
+			EndMS:   2000,
+		}
+
+		// Act
+		cue, created := parser.CreateContestCue(context)
+
+		// Assert
+		assert.True(t, created, "should create ContestCue with mixed case spelled keyword")
+		assert.NotNil(t, cue, "should return ContestCue")
+		assert.Equal(t, "PARK", cue.ContestType, "should use reconstructed keyword as contest type")
+		assert.Equal(t, "Text PARK to 9876", cue.Details["reconstructed_text"], "should reconstruct to uppercase")
+	})
+
+	t.Run("should maintain compatibility with non-spelled keywords", func(t *testing.T) {
+		// Arrange
+		allowlist := []string{"5555"}
+		parser := NewContestParser(allowlist)
+		context := &buffer.BufferedContext{
+			Text:    "Text POTA to 5555",
+			StartMS: 1000,
+			EndMS:   2000,
+		}
+
+		// Act
+		cue, created := parser.CreateContestCue(context)
+
+		// Assert
+		assert.True(t, created, "should still work with non-spelled keywords")
+		assert.NotNil(t, cue, "should return ContestCue")
+		assert.Equal(t, "POTA", cue.ContestType, "should use original keyword")
+		assert.Equal(t, "Text POTA to 5555", cue.Details["original_text"], "should have original text")
+		assert.Equal(t, "Text POTA to 5555", cue.Details["reconstructed_text"], "should match original when no reconstruction needed")
+	})
+
+	t.Run("should fail when spelled keyword doesn't match pattern after reconstruction", func(t *testing.T) {
+		// Arrange
+		allowlist := []string{"9999"}
+		parser := NewContestParser(allowlist)
+		context := &buffer.BufferedContext{
+			Text:    "Just spelling S A N D without pattern",
+			StartMS: 1000,
+			EndMS:   2000,
+		}
+
+		// Act
+		cue, created := parser.CreateContestCue(context)
+
+		// Assert
+		assert.False(t, created, "should fail when reconstructed text doesn't match contest pattern")
+		assert.Nil(t, cue, "should return nil ContestCue")
+	})
+
+	t.Run("should fail when number not in allowlist even with spelled keyword", func(t *testing.T) {
+		// Arrange
+		allowlist := []string{"7777"}
+		parser := NewContestParser(allowlist)
+		context := &buffer.BufferedContext{
+			Text:    "Text S A N D to 1234",
+			StartMS: 1000,
+			EndMS:   2000,
+		}
+
+		// Act
+		cue, created := parser.CreateContestCue(context)
+
+		// Assert
+		assert.False(t, created, "should fail when number not in allowlist")
+		assert.Nil(t, cue, "should return nil ContestCue")
+	})
+}

@@ -20,6 +20,7 @@ func NewConfiguration() *Configuration {
 	v.SetDefault("buffer.duration_ms", 2500)
 	v.SetDefault("allowlist.numbers", []string{})
 	v.SetDefault("debug_mode", false)
+	v.SetDefault("log.file_path", "./logs/contest_output.log")
 	return &Configuration{viper: v}
 }
 
@@ -32,6 +33,7 @@ func NewConfigurationFromFile(configFile string) (*Configuration, error) {
 	v.SetDefault("buffer.duration_ms", 2500)
 	v.SetDefault("allowlist.numbers", []string{})
 	v.SetDefault("debug_mode", false)
+	v.SetDefault("log.file_path", "./logs/contest_output.log")
 
 	if err := v.ReadInConfig(); err != nil {
 		return nil, fmt.Errorf("failed to read config file %s: %w", configFile, err)
@@ -54,6 +56,7 @@ func NewConfigurationFromEnv() (*Configuration, error) {
 	v.SetDefault("buffer.duration_ms", 2500)
 	v.SetDefault("allowlist.numbers", []string{})
 	v.SetDefault("debug_mode", false)
+	v.SetDefault("log.file_path", "./logs/contest_output.log")
 
 	// Set up environment variable mapping
 	v.SetEnvPrefix("RADIO")
@@ -65,6 +68,7 @@ func NewConfigurationFromEnv() (*Configuration, error) {
 	v.BindEnv("buffer.duration_ms", "BUFFER_DURATION_MS")
 	v.BindEnv("allowlist.numbers", "ALLOWLIST_NUMBERS")
 	v.BindEnv("debug_mode", "DEBUG_MODE")
+	v.BindEnv("log.file_path", "LOG_FILE_PATH")
 
 	return &Configuration{viper: v}, nil
 }
@@ -115,4 +119,9 @@ func (c *Configuration) GetDebugMode() bool {
 // SetDebugMode sets the debug mode state
 func (c *Configuration) SetDebugMode(enabled bool) {
 	c.viper.Set("debug_mode", enabled)
+}
+
+// GetLogFilePath returns the configured log file path
+func (c *Configuration) GetLogFilePath() string {
+	return c.viper.GetString("log.file_path")
 }

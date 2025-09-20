@@ -299,6 +299,76 @@ func TestConfiguration_GetBufferDurationMS(t *testing.T) {
 	})
 }
 
+func TestConfiguration_GetLogFilePath(t *testing.T) {
+	t.Run("should return configured log file path", func(t *testing.T) {
+		// Arrange
+		cfg := NewConfiguration()
+
+		// Act
+		path := cfg.GetLogFilePath()
+
+		// Assert
+		assert.NotEmpty(t, path, "log file path should not be empty")
+		assert.Equal(t, "./logs/contest_output.log", path)
+	})
+
+	t.Run("should load log file path from config file", func(t *testing.T) {
+		// Arrange - create temporary config file
+		tmpDir := t.TempDir()
+		configFile := filepath.Join(tmpDir, "config.yaml")
+		configContent := `log:
+  file_path: "/tmp/custom_contest.log"`
+
+		err := os.WriteFile(configFile, []byte(configContent), 0644)
+		assert.NoError(t, err)
+
+		cfg, err := NewConfigurationFromFile(configFile)
+		assert.NoError(t, err)
+
+		// Act
+		path := cfg.GetLogFilePath()
+
+		// Assert
+		assert.Equal(t, "/tmp/custom_contest.log", path)
+	})
+
+	t.Run("should load log file path from environment variable", func(t *testing.T) {
+		// Arrange
+		testPath := "/env/path/to/contest.log"
+		os.Setenv("LOG_FILE_PATH", testPath)
+		defer os.Unsetenv("LOG_FILE_PATH")
+
+		cfg, err := NewConfigurationFromEnv()
+		assert.NoError(t, err)
+
+		// Act
+		path := cfg.GetLogFilePath()
+
+		// Assert
+		assert.Equal(t, testPath, path)
+	})
+
+	t.Run("should fall back to default path when config file lacks log section", func(t *testing.T) {
+		// Arrange - create config file without log section
+		tmpDir := t.TempDir()
+		configFile := filepath.Join(tmpDir, "minimal.yaml")
+		configContent := `stream:
+  url: "https://test.example.com/stream.aac"`
+
+		err := os.WriteFile(configFile, []byte(configContent), 0644)
+		assert.NoError(t, err)
+
+		cfg, err := NewConfigurationFromFile(configFile)
+		assert.NoError(t, err)
+
+		// Act
+		path := cfg.GetLogFilePath()
+
+		// Assert
+		assert.Equal(t, "./logs/contest_output.log", path)
+	})
+}
+
 func TestConfiguration_GetAllowlist(t *testing.T) {
 	t.Run("should return empty allowlist by default", func(t *testing.T) {
 		// Arrange

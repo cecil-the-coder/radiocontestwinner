@@ -3,6 +3,7 @@ package parser
 import (
 	"fmt"
 	"regexp"
+	"strings"
 
 	"go.uber.org/zap"
 
@@ -13,13 +14,18 @@ import (
 type ContestParser struct {
 	allowlist []string
 	logger    *zap.Logger
+	// Pre-compiled regexes for performance
+	punctuationRegex *regexp.Regexp
+	letterRegex      *regexp.Regexp
 }
 
 // NewContestParser creates a new ContestParser with the given allowlist
 func NewContestParser(allowlist []string) *ContestParser {
 	return &ContestParser{
-		allowlist: allowlist,
-		logger:    zap.NewNop(), // Default to no-op logger
+		allowlist:        allowlist,
+		logger:           zap.NewNop(), // Default to no-op logger
+		punctuationRegex: regexp.MustCompile(`[^\w]`),
+		letterRegex:      regexp.MustCompile(`[A-Za-z]`),
 	}
 }
 
@@ -29,8 +35,10 @@ func NewContestParserWithLogger(allowlist []string, logger *zap.Logger) *Contest
 		logger = zap.NewNop() // Use no-op logger if nil is passed
 	}
 	return &ContestParser{
-		allowlist: allowlist,
-		logger:    logger,
+		allowlist:        allowlist,
+		logger:           logger,
+		punctuationRegex: regexp.MustCompile(`[^\w]`),
+		letterRegex:      regexp.MustCompile(`[A-Za-z]`),
 	}
 }
 
@@ -140,21 +148,33 @@ func (cp *ContestParser) CreateContestCue(context *buffer.BufferedContext) (*Con
 		zap.Int("start_ms", context.StartMS),
 		zap.Int("end_ms", context.EndMS))
 
-	// Try to match the contest pattern
-	keyword, number, matched := cp.MatchContestPattern(context.Text)
+	// Apply spelled-out word reconstruction before pattern matching
+	originalText := context.Text
+	reconstructedText := cp.ReconstructSpelledWords(originalText)
+
+	if reconstructedText != originalText {
+		cp.logger.Debug("applied spelled word reconstruction",
+			zap.String("original_text", originalText),
+			zap.String("reconstructed_text", reconstructedText))
+	}
+
+	// Try to match the contest pattern on reconstructed text
+	keyword, number, matched := cp.MatchContestPattern(reconstructedText)
 	if !matched {
 		cp.logger.Debug("ContestCue creation failed - no pattern match",
-			zap.String("text", context.Text))
+			zap.String("original_text", originalText),
+			zap.String("reconstructed_text", reconstructedText))
 		return nil, false
 	}
 
 	// Create details map with extracted information
 	details := map[string]interface{}{
-		"keyword":       keyword,
-		"number":        number,
-		"original_text": context.Text,
-		"start_ms":      context.StartMS,
-		"end_ms":        context.EndMS,
+		"keyword":            keyword,
+		"number":             number,
+		"original_text":      originalText,
+		"reconstructed_text": reconstructedText,
+		"start_ms":           context.StartMS,
+		"end_ms":             context.EndMS,
 	}
 
 	// Create ContestCue with the keyword as the contest type
@@ -229,4 +249,130 @@ func (cp *ContestParser) ProcessBufferedContext(inputCh <-chan buffer.BufferedCo
 			}
 		}
 	}
+}
+
+// DetectLetterSequences identifies consecutive single letters in text that could be spelled-out words
+// Returns slice of normalized letter sequences (minimum 3 letters)
+func (cp *ContestParser) DetectLetterSequences(text string) []string {
+	if text == "" {
+		return []string{}
+	}
+
+	cp.logger.Debug("detecting letter sequences in text",
+		zap.String("text", text))
+
+	// Scan word by word to find sequences of single letters
+	words := strings.Fields(text)
+	var currentSequence []string
+	var sequences []string
+
+	for _, word := range words {
+		// Clean word from punctuation
+		cleanWord := cp.punctuationRegex.ReplaceAllString(word, "")
+
+		// Check if it's a single letter
+		if len(cleanWord) == 1 && cp.letterRegex.MatchString(cleanWord) {
+			currentSequence = append(currentSequence, cleanWord)
+		} else {
+			// Not a single letter, check if we have a valid sequence
+			if len(currentSequence) >= 3 {
+				sequence := strings.Join(currentSequence, " ")
+				sequences = append(sequences, sequence)
+				cp.logger.Debug("detected letter sequence",
+					zap.String("sequence", sequence),
+					zap.Int("length", len(currentSequence)))
+			}
+			currentSequence = []string{}
+		}
+	}
+
+	// Check final sequence
+	if len(currentSequence) >= 3 {
+		sequence := strings.Join(currentSequence, " ")
+		sequences = append(sequences, sequence)
+		cp.logger.Debug("detected final letter sequence",
+			zap.String("sequence", sequence),
+			zap.Int("length", len(currentSequence)))
+	}
+
+	cp.logger.Debug("completed letter sequence detection",
+		zap.Int("total_sequences", len(sequences)))
+
+	return sequences
+}
+
+// ReconstructWord combines a letter sequence into a single word with proper case normalization
+func (cp *ContestParser) ReconstructWord(sequence string) string {
+	if sequence == "" {
+		return ""
+	}
+
+	cp.logger.Debug("reconstructing word from sequence",
+		zap.String("sequence", sequence))
+
+	// Split by whitespace and extract letters
+	parts := strings.Fields(sequence)
+	var letters []string
+
+	for _, part := range parts {
+		// Remove any punctuation and get just the letter
+		cleanPart := cp.punctuationRegex.ReplaceAllString(part, "")
+		if len(cleanPart) == 1 && cp.letterRegex.MatchString(cleanPart) {
+			letters = append(letters, strings.ToUpper(cleanPart))
+		}
+	}
+
+	result := strings.Join(letters, "")
+
+	cp.logger.Debug("reconstructed word",
+		zap.String("sequence", sequence),
+		zap.String("result", result))
+
+	return result
+}
+
+// ReconstructSpelledWords processes text to find and replace spelled-out letter sequences with reconstructed words
+func (cp *ContestParser) ReconstructSpelledWords(text string) string {
+	if text == "" {
+		return text
+	}
+
+	cp.logger.Debug("reconstructing spelled words in text",
+		zap.String("original_text", text))
+
+	// Find all letter sequences
+	sequences := cp.DetectLetterSequences(text)
+
+	if len(sequences) == 0 {
+		cp.logger.Debug("no letter sequences found for reconstruction")
+		return text
+	}
+
+	result := text
+
+	// Replace each sequence with reconstructed word
+	for _, sequence := range sequences {
+		word := cp.ReconstructWord(sequence)
+		if word != "" {
+			// Create pattern to match the sequence in text (handle various spacing/punctuation)
+			escapedSequence := regexp.QuoteMeta(sequence)
+			// Allow for flexible spacing and punctuation between letters
+			flexiblePattern := strings.ReplaceAll(escapedSequence, `\ `, `\s*[,\s]*\s*`)
+			pattern := `\b` + flexiblePattern + `\b`
+
+			regex := regexp.MustCompile(pattern)
+			if regex.MatchString(result) {
+				result = regex.ReplaceAllString(result, word)
+				cp.logger.Debug("replaced spelled sequence with word",
+					zap.String("sequence", sequence),
+					zap.String("word", word))
+			}
+		}
+	}
+
+	cp.logger.Debug("completed spelled word reconstruction",
+		zap.String("original_text", text),
+		zap.String("reconstructed_text", result))
+
+	return result
 }
