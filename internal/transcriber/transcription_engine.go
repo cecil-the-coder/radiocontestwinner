@@ -6,6 +6,8 @@ import (
 	"io"
 
 	"go.uber.org/zap"
+
+	"radiocontestwinner/internal/config"
 )
 
 // WhisperModel interface defines the operations needed from Whisper.cpp model
@@ -17,8 +19,9 @@ type WhisperModel interface {
 
 // TranscriptionEngine manages the Whisper.cpp model and processes audio streams
 type TranscriptionEngine struct {
-	logger *zap.Logger
-	model  WhisperModel
+	logger     *zap.Logger
+	model      WhisperModel
+	config     *config.Configuration
 }
 
 // NewTranscriptionEngine creates a new TranscriptionEngine instance
@@ -26,6 +29,16 @@ func NewTranscriptionEngine(logger *zap.Logger) *TranscriptionEngine {
 	return &TranscriptionEngine{
 		logger: logger,
 		model:  NewWhisperCppModel(logger),
+		config: config.NewConfiguration(), // Default config
+	}
+}
+
+// NewTranscriptionEngineWithConfig creates a new TranscriptionEngine instance with custom configuration
+func NewTranscriptionEngineWithConfig(logger *zap.Logger, config *config.Configuration) *TranscriptionEngine {
+	return &TranscriptionEngine{
+		logger: logger,
+		model:  NewWhisperCppModel(logger),
+		config: config,
 	}
 }
 
@@ -98,6 +111,18 @@ func (te *TranscriptionEngine) ProcessAudio(ctx context.Context, audioReader io.
 					zap.Int("start_ms", segment.StartMS),
 					zap.Int("end_ms", segment.EndMS),
 					zap.Float32("confidence", segment.Confidence))
+
+				// Log debug output if debug mode is enabled
+				if te.config.GetDebugMode() {
+					te.logger.Debug("Transcription segment",
+						zap.String("component", "transcriber"),
+						zap.Any("data", map[string]interface{}{
+							"text":      segment.Text,
+							"start_ms":  segment.StartMS,
+							"end_ms":    segment.EndMS,
+							"confidence": segment.Confidence,
+						}))
+				}
 			}
 		}
 

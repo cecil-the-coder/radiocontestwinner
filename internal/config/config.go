@@ -19,6 +19,7 @@ func NewConfiguration() *Configuration {
 	v.SetDefault("whisper.model_path", "./models/ggml-base.en.bin")
 	v.SetDefault("buffer.duration_ms", 2500)
 	v.SetDefault("allowlist.numbers", []string{})
+	v.SetDefault("debug_mode", false)
 	return &Configuration{viper: v}
 }
 
@@ -30,6 +31,7 @@ func NewConfigurationFromFile(configFile string) (*Configuration, error) {
 	v.SetDefault("whisper.model_path", "./models/ggml-base.en.bin")
 	v.SetDefault("buffer.duration_ms", 2500)
 	v.SetDefault("allowlist.numbers", []string{})
+	v.SetDefault("debug_mode", false)
 
 	if err := v.ReadInConfig(); err != nil {
 		return nil, fmt.Errorf("failed to read config file %s: %w", configFile, err)
@@ -51,6 +53,7 @@ func NewConfigurationFromEnv() (*Configuration, error) {
 	v.SetDefault("whisper.model_path", "./models/ggml-base.en.bin")
 	v.SetDefault("buffer.duration_ms", 2500)
 	v.SetDefault("allowlist.numbers", []string{})
+	v.SetDefault("debug_mode", false)
 
 	// Set up environment variable mapping
 	v.SetEnvPrefix("RADIO")
@@ -61,6 +64,7 @@ func NewConfigurationFromEnv() (*Configuration, error) {
 	v.BindEnv("whisper.model_path", "WHISPER_MODEL_PATH")
 	v.BindEnv("buffer.duration_ms", "BUFFER_DURATION_MS")
 	v.BindEnv("allowlist.numbers", "ALLOWLIST_NUMBERS")
+	v.BindEnv("debug_mode", "DEBUG_MODE")
 
 	return &Configuration{viper: v}, nil
 }
@@ -101,4 +105,14 @@ func (c *Configuration) GetAllowlist() []string {
 
 	// Return the slice as-is (could be empty, single element, or multiple elements)
 	return allowlistSlice
+}
+
+// GetDebugMode returns whether debug mode is enabled
+func (c *Configuration) GetDebugMode() bool {
+	return c.viper.GetBool("debug_mode")
+}
+
+// SetDebugMode sets the debug mode state
+func (c *Configuration) SetDebugMode(enabled bool) {
+	c.viper.Set("debug_mode", enabled)
 }

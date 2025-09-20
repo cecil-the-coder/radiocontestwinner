@@ -28,3 +28,10 @@ allowlist:
     - "222"      # 220 MHz band
     - "0146"     # Frequency with leading zero
     # Add more numbers as needed for your contest
+
+# Debug mode configuration
+debug_mode: false
+# When enabled, all transcribed audio segments are printed to console
+# with timestamps, confidence scores, and timing information
+# This is useful for monitoring transcription quality and debugging
+# Can be toggled at runtime without restarting the application
