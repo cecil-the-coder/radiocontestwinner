@@ -203,8 +203,8 @@ func TestContextBuffer_ResourceCleanup(t *testing.T) {
 		// The result should contain some of the test text
 		assert.True(t,
 			result.Text == "Test" ||
-			result.Text == "cleanup" ||
-			result.Text == "Test cleanup",
+				result.Text == "cleanup" ||
+				result.Text == "Test cleanup",
 			"should contain some buffered text, got: %s", result.Text)
 	case <-time.After(50 * time.Millisecond):
 		// This is also acceptable if buffer was empty or already flushed

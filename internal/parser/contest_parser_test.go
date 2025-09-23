@@ -1215,3 +1215,43 @@ func TestContestParser_IntegrationSpelledWordReconstruction(t *testing.T) {
 		assert.Nil(t, cue, "should return nil ContestCue")
 	})
 }
+
+// TestContestParser_HyphenatedSequenceDetection tests the detectHyphenatedSequence function
+func TestContestParser_HyphenatedSequenceDetection(t *testing.T) {
+	parser := NewContestParser([]string{"1234"})
+
+	t.Run("should detect valid hyphenated letter sequence", func(t *testing.T) {
+		result := parser.detectHyphenatedSequence("P-O-T-A")
+		assert.Equal(t, "P O T A", result)
+	})
+
+	t.Run("should detect longer hyphenated sequence", func(t *testing.T) {
+		result := parser.detectHyphenatedSequence("W-W-F-F")
+		assert.Equal(t, "W W F F", result)
+	})
+
+	t.Run("should return empty for non-hyphenated word", func(t *testing.T) {
+		result := parser.detectHyphenatedSequence("POTA")
+		assert.Equal(t, "", result)
+	})
+
+	t.Run("should return empty for sequence too short", func(t *testing.T) {
+		result := parser.detectHyphenatedSequence("P-O")
+		assert.Equal(t, "", result)
+	})
+
+	t.Run("should return empty for sequence with multi-letter parts", func(t *testing.T) {
+		result := parser.detectHyphenatedSequence("POT-A")
+		assert.Equal(t, "", result)
+	})
+
+	t.Run("should handle hyphenated sequence with punctuation", func(t *testing.T) {
+		result := parser.detectHyphenatedSequence("P,-O.-T!-A?")
+		assert.Equal(t, "P O T A", result)
+	})
+
+	t.Run("should return empty for mixed valid/invalid parts", func(t *testing.T) {
+		result := parser.detectHyphenatedSequence("P-O-123-A")
+		assert.Equal(t, "", result)
+	})
+}

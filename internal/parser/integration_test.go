@@ -38,10 +38,10 @@ func TestContestParser_Integration(t *testing.T) {
 		outputCh := make(chan buffer.BufferedContext, 4)
 
 		contexts := []buffer.BufferedContext{
-			{Text: "This is 73 calling CQ contest", StartMS: 1000, EndMS: 2000},        // Should pass (73)
-			{Text: "Commercial break for insurance", StartMS: 2000, EndMS: 3000},      // Should be filtered out
-			{Text: "Station 146 please respond", StartMS: 3000, EndMS: 4000},         // Should pass (146)
-			{Text: "Weather report: 75 degrees", StartMS: 4000, EndMS: 5000},         // Should be filtered out (75 not in allowlist)
+			{Text: "This is 73 calling CQ contest", StartMS: 1000, EndMS: 2000},  // Should pass (73)
+			{Text: "Commercial break for insurance", StartMS: 2000, EndMS: 3000}, // Should be filtered out
+			{Text: "Station 146 please respond", StartMS: 3000, EndMS: 4000},     // Should pass (146)
+			{Text: "Weather report: 75 degrees", StartMS: 4000, EndMS: 5000},     // Should be filtered out (75 not in allowlist)
 		}
 
 		// Act - send contexts and process
@@ -81,7 +81,7 @@ func TestContestParser_Integration(t *testing.T) {
 		outputCh := make(chan buffer.BufferedContext, 2)
 
 		contexts := []buffer.BufferedContext{
-			{Text: "Station 73 calling", StartMS: 1000, EndMS: 2000},              // Should pass (73)
+			{Text: "Station 73 calling", StartMS: 1000, EndMS: 2000},             // Should pass (73)
 			{Text: "Random chatter without numbers", StartMS: 2000, EndMS: 3000}, // Should be filtered out
 		}
 

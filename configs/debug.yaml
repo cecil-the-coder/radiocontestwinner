@@ -1,0 +1,33 @@
+# Radio Contest Winner Debug Configuration
+# Configuration optimized for debugging and testing
+
+# Audio stream configuration
+stream:
+  url: "https://ais-sa1.streamon.fm:443/7346_48k.aac"
+
+# Whisper transcription model configuration
+whisper:
+  model_path: "/app/models/ggml-base.en.bin"
+
+# Context buffer configuration
+buffer:
+  # Shorter buffer for faster debugging feedback
+  duration_ms: 2000
+
+# Number allowlist configuration for contest parsing
+allowlist:
+  # Test numbers for debugging
+  numbers:
+    - "73"       # Common ham radio sign-off
+    - "146"      # 2-meter band frequency
+    - "222"      # 220 MHz band
+    - "0146"     # Frequency with leading zero
+    - "55555"    # Common contest shortcode for testing
+    - "12345"    # Another test shortcode
+
+# Debug mode configuration
+debug_mode: true
+
+# Log file configuration
+log:
+  file_path: "/app/logs/contest_output.log"

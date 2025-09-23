@@ -26,8 +26,10 @@ func TestDockerfileStructure(t *testing.T) {
 
 	// Test for multi-stage build structure
 	assert.Contains(t, content, "FROM", "Dockerfile should contain FROM instructions")
-	assert.Contains(t, content, "golang", "Dockerfile should use golang base image for build stage")
-	assert.Contains(t, content, "debian:", "Dockerfile should use debian for final stage")
+	// Updated for CUDA support - now uses NGC registry nvidia/cuda images
+	assert.Contains(t, content, "nvcr.io/nvidia/cuda", "Dockerfile should use NGC registry nvidia/cuda base images for CUDA support")
+	assert.Contains(t, content, "devel-ubuntu", "Dockerfile should use CUDA development image for build stage")
+	assert.Contains(t, content, "runtime-ubuntu", "Dockerfile should use CUDA runtime image for final stage")
 
 	// Test for required components
 	assert.Contains(t, content, "RUN apt-get update", "Dockerfile should install system dependencies")

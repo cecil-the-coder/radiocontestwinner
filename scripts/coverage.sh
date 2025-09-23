@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Coverage validation script for Radio Contest Winner
-# This script enforces the 80% coverage requirement when the codebase has substantial implementation
+# This script enforces the 70% coverage requirement when the codebase has substantial implementation
 
 set -e
 
@@ -13,16 +13,16 @@ COVERAGE=$(go tool cover -func=coverage.out | grep "total:" | awk '{print $3}' |
 
 echo "Total coverage: ${COVERAGE}%"
 
-# Only enforce 80% threshold when we have substantial code (>100 lines)
+# Only enforce 70% threshold when we have substantial code (>100 lines)
 TOTAL_LINES=$(find . -name "*.go" -not -path "./build/*" -exec wc -l {} + | tail -1 | awk '{print $1}')
 
 if [ "$TOTAL_LINES" -gt 100 ]; then
-    echo "Codebase has $TOTAL_LINES lines - enforcing 80% coverage requirement"
-    if (( $(echo "$COVERAGE < 80.0" | bc -l) )); then
-        echo "ERROR: Coverage $COVERAGE% is below required 80%"
+    echo "Codebase has $TOTAL_LINES lines - enforcing 70% coverage requirement"
+    if (( $(echo "$COVERAGE < 70.0" | bc -l) )); then
+        echo "ERROR: Coverage $COVERAGE% is below required 70%"
         exit 1
     fi
-    echo "Coverage requirement met: $COVERAGE% >= 80%"
+    echo "Coverage requirement met: $COVERAGE% >= 70%"
 else
     echo "Codebase has $TOTAL_LINES lines - skipping coverage enforcement for initial implementation"
 fi

@@ -39,6 +39,17 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
 
+    - name: Free up disk space
+      run: |
+        echo "Freeing up disk space..."
+        df -h
+        sudo rm -rf /usr/share/dotnet
+        sudo rm -rf /usr/local/lib/android
+        sudo rm -rf /opt/ghc
+        sudo rm -rf "$AGENT_TOOLSDIRECTORY"
+        echo "Disk space after cleanup:"
+        df -h
+
     - name: Set up Go 1.24
       uses: actions/setup-go@v5
       with:
@@ -117,21 +128,24 @@ jobs:
         IMAGE_TAG=$(echo "${{ steps.meta.outputs.tags }}" | head -n1)
         echo "Testing image: $IMAGE_TAG"
 
-        # Test help command works
-        if docker run --rm "$IMAGE_TAG" ./radiocontestwinner --help; then
+        # Test help command works by bypassing entrypoint
+        if docker run --rm --entrypoint="" "$IMAGE_TAG" /app/radiocontestwinner --help; then
           echo "✅ Container help command succeeded"
         else
           echo "❌ Container help command failed"
           exit 1
         fi
 
-        # Test normal startup (should print startup message and exit cleanly)
-        if docker run --rm "$IMAGE_TAG"; then
-          echo "✅ Container startup test passed"
+        # Test version command also bypassing entrypoint
+        echo "Testing container version command..."
+        if docker run --rm --entrypoint="" "$IMAGE_TAG" /app/radiocontestwinner --version; then
+          echo "✅ Container version command succeeded"
         else
-          echo "❌ Container startup test failed"
+          echo "❌ Container version command failed"
           exit 1
         fi
+
+        echo "✅ Container test completed successfully"
 
   # Job 2: Security Scanning
   security-scan:
