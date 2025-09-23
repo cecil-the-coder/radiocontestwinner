@@ -35,3 +35,17 @@ debug_mode: false
 # with timestamps, confidence scores, and timing information
 # This is useful for monitoring transcription quality and debugging
 # Can be toggled at runtime without restarting the application
+
+# GPU Acceleration Configuration
+gpu:
+  enabled: true                    # Enable CUDA acceleration for Whisper.cpp
+  auto_detect: true                # Auto-detect GPU availability
+  device_id: 0                    # GPU device ID to use (0 = first GPU)
+  memory_limit: ""                 # Optional GPU memory limit (e.g., "4G")
+
+# Performance monitoring configuration
+performance:
+  benchmark_mode: false            # Enable benchmarking mode
+  log_gpu_utilization: true        # Log GPU utilization metrics
+  memory_monitoring: true          # Monitor GPU memory usage
+  compare_gpu_cpu: true           # Compare GPU vs CPU performance

@@ -1,0 +1,115 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: radiocontestwinner
+  labels:
+    app: radiocontestwinner
+    version: v3.4
+    component: audio-transcription
+spec:
+  replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  selector:
+    matchLabels:
+      app: radiocontestwinner
+  template:
+    metadata:
+      labels:
+        app: radiocontestwinner
+        version: v3.4
+        component: audio-transcription
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8080"
+        prometheus.io/path: "/metrics"
+    spec:
+      securityContext:
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+      containers:
+      - name: radiocontestwinner
+        image: ghcr.io/cecil-the-coder/radiocontestwinner:main-6300a6d
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 8080
+          name: http
+          protocol: TCP
+        resources:
+          limits:
+            cpu: "2"
+            memory: "2Gi"
+            nvidia.com/gpu: 1
+          requests:
+            cpu: "1"
+            memory: "1Gi"
+        env:
+        - name: CONFIG_PATH
+          value: "/app/config/config.yaml"
+        - name: WHISPER_MODEL
+          value: "base.en"  # Use included base.en model by default
+        - name: GPU_ENABLED
+          value: "true"
+        - name: WHISPER_MODEL_DOWNLOAD_ENABLED
+          value: "true"  # Enable automatic model downloading
+        volumeMounts:
+        - name: config-volume
+          mountPath: /app/config
+          readOnly: true
+        - name: models-volume
+          mountPath: /app/models
+          readOnly: false
+        - name: output-volume
+          mountPath: /app/output
+        - name: health-volume
+          mountPath: /tmp
+        livenessProbe:
+          exec:
+            command:
+            - /app/radiocontestwinner
+            - --health
+          initialDelaySeconds: 30
+          periodSeconds: 30
+          timeoutSeconds: 10
+          failureThreshold: 3
+        readinessProbe:
+          exec:
+            command:
+            - /app/radiocontestwinner
+            - --health
+          initialDelaySeconds: 5
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 1
+        securityContext:
+          readOnlyRootFilesystem: true
+          allowPrivilegeEscalation: false
+          runAsNonRoot: true
+          capabilities:
+            drop:
+            - ALL
+      volumes:
+      - name: config-volume
+        configMap:
+          name: radiocontestwinner-config
+      - name: models-volume
+        emptyDir: {}  # base.en model included in container; additional models downloaded automatically
+      - name: output-volume
+        emptyDir: {}  # Temporary storage for live processing output
+      - name: health-volume
+        emptyDir: {}
+      nodeSelector:
+        nvidia.com/gpu: "true"
+      tolerations:
+      - key: nvidia.com/gpu
+        operator: Exists
+        effect: NoSchedule
+      runtimeClassName: nvidia
+      restartPolicy: Always
+      terminationGracePeriodSeconds: 30
+      dnsPolicy: ClusterFirst
+      schedulerName: default-scheduler

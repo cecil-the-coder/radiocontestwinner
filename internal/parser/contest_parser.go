@@ -82,6 +82,7 @@ func (cp *ContestParser) ExtractNumbers(text string) []string {
 
 // MatchContestPattern matches the "Text [KEYWORD] to [NUMBER]" pattern in the given text
 // Returns keyword, number, and whether a valid match was found
+// NOTE: This function also applies spelled word reconstruction before pattern matching
 func (cp *ContestParser) MatchContestPattern(text string) (keyword, number string, matched bool) {
 	// Log the pattern matching attempt
 	cp.logger.Debug("attempting pattern matching",
@@ -96,16 +97,27 @@ func (cp *ContestParser) MatchContestPattern(text string) (keyword, number strin
 		return "", "", false
 	}
 
+	// Apply spelled-out word reconstruction before pattern matching
+	originalText := text
+	reconstructedText := cp.ReconstructSpelledWords(originalText)
+
+	if reconstructedText != originalText {
+		cp.logger.Debug("applied spelled word reconstruction in MatchContestPattern",
+			zap.String("original_text", originalText),
+			zap.String("reconstructed_text", reconstructedText))
+	}
+
 	// Create regex pattern for "Text [KEYWORD] to [NUMBER]"
 	// Case-insensitive matching for "Text" and "to", but preserve case for keyword
 	pattern := `(?i)\btext\s+(\S+)\s+to\s+(\d+)\b`
 	regex := regexp.MustCompile(pattern)
 
-	matches := regex.FindStringSubmatch(text)
+	matches := regex.FindStringSubmatch(reconstructedText)
 	if len(matches) < 3 {
 		cp.logger.Debug("pattern matching failed - no regex match",
 			zap.String("pattern", pattern),
-			zap.String("text", text))
+			zap.String("original_text", originalText),
+			zap.String("reconstructed_text", reconstructedText))
 		return "", "", false
 	}
 
@@ -122,7 +134,8 @@ func (cp *ContestParser) MatchContestPattern(text string) (keyword, number strin
 			cp.logger.Info("pattern matching successful",
 				zap.String("keyword", extractedKeyword),
 				zap.String("number", extractedNumber),
-				zap.String("text", text))
+				zap.String("original_text", originalText),
+				zap.String("reconstructed_text", reconstructedText))
 			return extractedKeyword, extractedNumber, true
 		}
 	}
@@ -301,6 +314,58 @@ func (cp *ContestParser) DetectLetterSequences(text string) []string {
 	return sequences
 }
 
+// detectHyphenSequences finds hyphen-separated letter sequences in the text
+// Returns slice of space-separated sequences for consistency with DetectLetterSequences
+func (cp *ContestParser) detectHyphenSequences(text string) []string {
+	var sequences []string
+
+	// Split text into words and check each word for hyphen-separated letters
+	words := strings.Fields(text)
+	for _, word := range words {
+		sequence := cp.detectHyphenatedSequence(word)
+		if sequence != "" {
+			sequences = append(sequences, sequence)
+		}
+	}
+
+	return sequences
+}
+
+// detectHyphenatedSequence checks if a word contains hyphen-separated single letters
+// Returns the sequence in space-separated format, or empty string if not a valid sequence
+func (cp *ContestParser) detectHyphenatedSequence(word string) string {
+	// Check if the word contains hyphens
+	if !strings.Contains(word, "-") {
+		return ""
+	}
+
+	// Split by hyphens
+	parts := strings.Split(word, "-")
+	if len(parts) < 3 {
+		// Need at least 3 letters for a valid sequence
+		return ""
+	}
+
+	var letters []string
+	for _, part := range parts {
+		// Clean each part from punctuation and check if it's a single letter
+		cleanPart := cp.punctuationRegex.ReplaceAllString(part, "")
+		if len(cleanPart) == 1 && cp.letterRegex.MatchString(cleanPart) {
+			letters = append(letters, cleanPart)
+		} else {
+			// Not a single letter, this is not a valid hyphenated sequence
+			return ""
+		}
+	}
+
+	// Only return if we have at least 3 valid letters
+	if len(letters) >= 3 {
+		return strings.Join(letters, " ")
+	}
+
+	return ""
+}
+
 // ReconstructWord combines a letter sequence into a single word with proper case normalization
 func (cp *ContestParser) ReconstructWord(sequence string) string {
 	if sequence == "" {
@@ -340,8 +405,12 @@ func (cp *ContestParser) ReconstructSpelledWords(text string) string {
 	cp.logger.Debug("reconstructing spelled words in text",
 		zap.String("original_text", text))
 
-	// Find all letter sequences
-	sequences := cp.DetectLetterSequences(text)
+	// Find all letter sequences (both space-separated and hyphen-separated)
+	spaceSequences := cp.DetectLetterSequences(text)
+	hyphenSequences := cp.detectHyphenSequences(text)
+
+	// Combine both types of sequences
+	sequences := append(spaceSequences, hyphenSequences...)
 
 	if len(sequences) == 0 {
 		cp.logger.Debug("no letter sequences found for reconstruction")
@@ -354,18 +423,34 @@ func (cp *ContestParser) ReconstructSpelledWords(text string) string {
 	for _, sequence := range sequences {
 		word := cp.ReconstructWord(sequence)
 		if word != "" {
-			// Create pattern to match the sequence in text (handle various spacing/punctuation)
-			escapedSequence := regexp.QuoteMeta(sequence)
-			// Allow for flexible spacing and punctuation between letters
-			flexiblePattern := strings.ReplaceAll(escapedSequence, `\ `, `\s*[,\s]*\s*`)
-			pattern := `\b` + flexiblePattern + `\b`
+			// Create pattern to match the sequence in text (handle various spacing/punctuation including hyphens)
+			// Split the sequence into individual letters
+			letters := strings.Fields(sequence)
+			if len(letters) > 0 {
+				// Build a pattern that matches the letters with flexible separators
+				var patternParts []string
+				for i, letter := range letters {
+					// Escape each letter in case it has special regex meaning
+					escapedLetter := regexp.QuoteMeta(letter)
+					patternParts = append(patternParts, escapedLetter)
 
-			regex := regexp.MustCompile(pattern)
-			if regex.MatchString(result) {
-				result = regex.ReplaceAllString(result, word)
-				cp.logger.Debug("replaced spelled sequence with word",
-					zap.String("sequence", sequence),
-					zap.String("word", word))
+					// Add separator pattern between letters (but not after the last one)
+					if i < len(letters)-1 {
+						// Match spaces, hyphens, commas, and combinations thereof
+						patternParts = append(patternParts, `\s*[-,\s]*\s*`)
+					}
+				}
+
+				pattern := `\b` + strings.Join(patternParts, "") + `\b`
+
+				regex := regexp.MustCompile(pattern)
+				if regex.MatchString(result) {
+					result = regex.ReplaceAllString(result, word)
+					cp.logger.Debug("replaced spelled sequence with word",
+						zap.String("sequence", sequence),
+						zap.String("word", word),
+						zap.String("pattern", pattern))
+				}
 			}
 		}
 	}

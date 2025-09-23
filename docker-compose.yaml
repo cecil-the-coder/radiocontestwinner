@@ -1,0 +1,57 @@
+services:
+  radiocontestwinner:
+    build:
+      context: .
+      dockerfile: build/Dockerfile
+    container_name: radiocontestwinner_debug
+    restart: unless-stopped
+    environment:
+      # Enable debug mode
+      - DEBUG_MODE=true
+      # Configure logging
+      - LOG_FILE_PATH=/app/logs/contest_output.log
+      # Stream configuration
+      - STREAM_URL=https://ais-sa1.streamon.fm:443/7346_48k.aac
+      # Buffer configuration
+      - BUFFER_DURATION_MS=2500
+      # Whisper model configuration (will download large model for maximum accuracy)
+      - WHISPER_MODEL_TYPE=medium
+      - WHISPER_MODEL_PATH=/app/models/ggml-medium.en.bin
+      # Whisper threading configuration (adjust based on your CPU cores)
+      - WHISPER_THREADS=8
+      # GPU configuration
+      - WHISPER_CUBLAS=true           # Enable CUDA acceleration
+      - WHISPER_CUBLAS_AUTO_DETECT=true # Auto-detect GPU availability
+      - WHISPER_GPU_DEVICE_ID=0        # Default GPU device ID
+      # NVIDIA Container Toolkit configuration
+      - NVIDIA_VISIBLE_DEVICES=all     # Make all GPUs visible
+      - NVIDIA_DRIVER_CAPABILITIES=compute,utility # Required for CUDA
+    volumes:
+      # Mount logs directory for debugging
+      - ./logs:/app/logs
+      # Mount configs if needed
+      - ./configs:/app/configs:ro
+      # Mount models directory for caching downloaded models
+      - ./models:/app/models
+    networks:
+      - radionet
+    # Add resource limits and GPU reservations
+    deploy:
+      resources:
+        limits:
+          memory: 8G # Increased for GPU workloads (model + GPU memory)
+        reservations:
+          memory: 6G
+    # Enable GPU support when available
+    runtime: nvidia
+    # Health check to ensure GPU is accessible if configured
+    healthcheck:
+      test: ["CMD-SHELL", "nvidia-smi || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+networks:
+  radionet:
+    driver: bridge

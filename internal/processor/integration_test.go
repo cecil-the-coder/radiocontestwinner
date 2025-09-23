@@ -24,8 +24,8 @@ func TestAudioProcessor_RealFFmpegWithValidInput(t *testing.T) {
 	samples := make([]byte, sampleRate*duration*2) // 16-bit samples
 	for i := 0; i < sampleRate*duration; i++ {
 		// Simple sine wave generation (very basic)
-		samples[i*2] = byte(i % 256)     // Low byte
-		samples[i*2+1] = byte(i / 256)   // High byte
+		samples[i*2] = byte(i % 256)   // Low byte
+		samples[i*2+1] = byte(i / 256) // High byte
 	}
 
 	input := bytes.NewReader(samples)

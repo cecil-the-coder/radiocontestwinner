@@ -35,12 +35,12 @@ func (a *AudioProcessor) StartFFmpeg(ctx context.Context) error {
 
 	// Configure FFmpeg command for AAC to 16kHz PCM conversion
 	args := []string{
-		"-f", "aac",           // Input format: AAC
-		"-i", "pipe:0",        // Read from stdin
-		"-ar", "16000",        // Sample rate: 16kHz (required for Whisper)
-		"-ac", "1",            // Mono channel
-		"-f", "s16le",         // Output format: 16-bit little-endian PCM
-		"-",                   // Write to stdout
+		"-f", "aac", // Input format: AAC
+		"-i", "pipe:0", // Read from stdin
+		"-ar", "16000", // Sample rate: 16kHz (required for Whisper)
+		"-ac", "1", // Mono channel
+		"-f", "s16le", // Output format: 16-bit little-endian PCM
+		"-", // Write to stdout
 	}
 
 	a.cmd = exec.CommandContext(ctx, a.ffmpegPath, args...)
@@ -133,8 +133,8 @@ func (a *AudioProcessor) Close() error {
 func isExpectedProcessTermination(err error) bool {
 	errStr := err.Error()
 	return errStr == "signal: broken pipe" ||
-		   errStr == "exit status 1" ||
-		   errStr == "exit status 187" // FFmpeg input format error
+		errStr == "exit status 1" ||
+		errStr == "exit status 187" // FFmpeg input format error
 }
 
 // handleStderr captures and logs FFmpeg stderr output for debugging

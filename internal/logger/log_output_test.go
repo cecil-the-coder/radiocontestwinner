@@ -479,7 +479,7 @@ func TestLogOutput_ProcessContestCues(t *testing.T) {
 		}()
 
 		inputCh <- *contestCue
-		inputCh <- *contestCue  // Second cue should still be processed despite first error
+		inputCh <- *contestCue // Second cue should still be processed despite first error
 		close(inputCh)
 
 		// Assert - should complete even with write errors

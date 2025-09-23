@@ -1,0 +1,62 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: radiocontestwinner-config
+  labels:
+    app: radiocontestwinner
+    version: v3.4
+    component: configuration
+    managed-by: kubernetes
+data:
+  config.yaml: |
+    # Radio Contest Winner Configuration
+    # Managed by Kubernetes ConfigMap
+
+    # Audio stream configuration
+    stream:
+      url: "https://ais-sa1.streamon.fm:443/7346_48k.aac"
+
+    # Whisper transcription model configuration
+    whisper:
+      # model_path: controlled by WHISPER_MODEL environment variable
+
+    # Context buffer configuration
+    buffer:
+      # Buffer duration in milliseconds (1000-10000 allowed, default: 2500)
+      # This controls how long segments are buffered before being combined
+      # into more coherent sentences for contest parsing
+      duration_ms: 2500
+
+    # Number allowlist configuration for contest parsing
+    allowlist:
+      # List of numbers to filter for in transcription text
+      # Only transcription segments containing these numbers will be processed
+      # for contest information. This helps filter out commercials and irrelevant chatter.
+      # Examples: ham radio call signs, contest numbers, frequency allocations
+      numbers:
+        - "73"       # Common ham radio sign-off
+        - "146"      # 2-meter band frequency
+        - "222"      # 220 MHz band
+        - "0146"     # Frequency with leading zero
+        # Add more numbers as needed for your contest
+
+    # Debug mode configuration
+    debug_mode: false
+    # When enabled, all transcribed audio segments are printed to console
+    # with timestamps, confidence scores, and timing information
+    # This is useful for monitoring transcription quality and debugging
+    # Can be toggled at runtime without restarting the application
+
+    # GPU Acceleration Configuration
+    gpu:
+      enabled: true                    # Enable CUDA acceleration for Whisper.cpp
+      auto_detect: true                # Auto-detect GPU availability
+      device_id: 0                    # GPU device ID to use (0 = first GPU)
+      memory_limit: ""                 # Optional GPU memory limit (e.g., "4G")
+
+    # Performance monitoring configuration
+    performance:
+      benchmark_mode: false            # Enable benchmarking mode
+      log_gpu_utilization: true        # Log GPU utilization metrics
+      memory_monitoring: true          # Monitor GPU memory usage
+      compare_gpu_cpu: true           # Compare GPU vs CPU performance
